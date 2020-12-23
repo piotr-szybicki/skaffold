@@ -114,7 +114,7 @@ func typeOfArtifact(a *latest.Artifact) string {
 func timeToListDependencies(ctx context.Context, a *latest.Artifact, cfg docker.Config) (time.Duration, []string, error) {
 	start := time.Now()
 	paths, err := build.DependenciesForArtifact(ctx, a, cfg, nil)
-	return time.Since(start), paths, err
+	return time.Since(start), paths["files"], err
 }
 
 func timeToConstructSyncMap(a *latest.Artifact, cfg docker.Config) (time.Duration, error) {

@@ -31,11 +31,13 @@ import (
 )
 
 // DependenciesForArtifact returns the dependencies for a given artifact.
-func DependenciesForArtifact(ctx context.Context, a *latest.Artifact, cfg docker.Config, r docker.ArtifactResolver) ([]string, error) {
+func DependenciesForArtifact(ctx context.Context, a *latest.Artifact, cfg docker.Config, r docker.ArtifactResolver) (map[string][]string, error) {
 	var (
 		paths []string
 		err   error
 	)
+
+	returnedMap := make(map[string][]string)
 
 	switch {
 	case a.DockerArtifact != nil:
@@ -48,7 +50,15 @@ func DependenciesForArtifact(ctx context.Context, a *latest.Artifact, cfg docker
 		if evalErr != nil {
 			return nil, fmt.Errorf("unable to evaluate build args: %w", evalErr)
 		}
-		paths, err = docker.GetDependencies(ctx, docker.NewBuildConfig(a.Workspace, a.ImageName, a.DockerArtifact.DockerfilePath, args), cfg)
+		config := docker.NewBuildConfig(a.Workspace, a.ImageName, a.DockerArtifact.DockerfilePath, args)
+		paths, err = docker.GetDependencies(ctx, config, cfg)
+
+		cmd, err := docker.GetImageIdFromFromCmd(config, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("error getting image Ids form images: %s", a.ImageName)
+		}
+
+		returnedMap["imageId"] = cmd
 
 	case a.KanikoArtifact != nil:
 		deps := docker.ResolveDependencyImages(a.Dependencies, r, false)
@@ -77,6 +87,7 @@ func DependenciesForArtifact(ctx context.Context, a *latest.Artifact, cfg docker
 	if err != nil {
 		return nil, err
 	}
+	returnedMap["files"] = util.AbsolutePaths(a.Workspace, paths)
 
-	return util.AbsolutePaths(a.Workspace, paths), nil
+	return returnedMap, nil
 }

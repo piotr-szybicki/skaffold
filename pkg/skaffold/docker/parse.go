@@ -101,6 +101,37 @@ func readCopyCmdsFromDockerfile(onlyLastImage bool, absDockerfilePath, workspace
 	return expandSrcGlobPatterns(workspace, cpCmds)
 }
 
+func readImageIdFromFromCmd(absDockerfilePath string, buildArgs map[string]*string, cfg Config) ([]string, error) {
+	f, err := os.Open(absDockerfilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	res, err := parser.Parse(f)
+	if err != nil {
+		return nil, fmt.Errorf("parsing dockerfile %q: %w", absDockerfilePath, err)
+	}
+
+	// instructions.Parse will check for malformed Dockerfile
+	if _, _, err := instructions.Parse(res.AST); err != nil {
+		return nil, fmt.Errorf("parsing dockerfile %q: %w", absDockerfilePath, err)
+	}
+
+	dockerfileLines := res.AST.Children
+
+	if err := expandBuildArgs(dockerfileLines, buildArgs); err != nil {
+		return nil, fmt.Errorf("putting build arguments: %w", err)
+	}
+
+	dockerfileLinesWithOnbuild, err := expandOnbuildInstructions(dockerfileLines, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return extractImagesFromDocker(dockerfileLinesWithOnbuild, cfg)
+}
+
 // filterUnusedBuildArgs removes entries from the build arguments map that are not found in the dockerfile
 func filterUnusedBuildArgs(dockerFile io.Reader, buildArgs map[string]*string) (map[string]*string, error) {
 	res, err := parser.Parse(dockerFile)
@@ -258,6 +289,47 @@ func extractCopyCommands(nodes []*parser.Node, onlyLastImage bool, cfg Config) (
 			// one env command may define multiple variables
 			for node := node.Next; node != nil && node.Next != nil; node = node.Next.Next {
 				envs = append(envs, fmt.Sprintf("%s=%s", node.Value, node.Next.Value))
+			}
+		}
+	}
+
+	return copied, nil
+}
+
+func extractImagesFromDocker(nodes []*parser.Node, cfg Config) ([]string, error) {
+	var copied []string
+	for _, node := range nodes {
+		switch node.Value {
+		case command.From:
+			from := fromInstruction(node)
+			if from.image == "" {
+				// some build args like artifact dependencies are not available until the first build sequence has completed.
+				// skip check if there are unavailable images
+				continue
+			}
+
+			//this means that image is build based on multistage it does not have container id yet.
+			if !strings.Contains(from.image, "/") {
+				continue
+			}
+
+			img, err := RetrieveImage(from.image, cfg)
+			if err == nil {
+				copied = append(copied, img.Container)
+			} else if _, ok := sErrors.IsOldImageManifestProblem(err); !ok {
+				return nil, err
+			}
+		case command.Copy:
+			for _, f := range node.Flags {
+				if strings.HasPrefix(f, "--from=") && strings.Contains(f, "/") {
+					s := strings.ReplaceAll(f, "--from=", "")
+					img, err := RetrieveImage(s, cfg)
+					if err == nil {
+						copied = append(copied, img.Container)
+					} else if _, ok := sErrors.IsOldImageManifestProblem(err); !ok {
+						return nil, err
+					}
+				}
 			}
 		}
 	}

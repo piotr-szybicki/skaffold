@@ -23,11 +23,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"os"
 	"sort"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build/buildpacks"
@@ -39,13 +38,13 @@ import (
 
 // For testing
 var (
-	newArtifactHasherFunc = newArtifactHasher
+	NewArtifactHasherFunc = newArtifactHasher
 	fileHasherFunc        = fileHasher
 	artifactConfigFunc    = artifactConfig
 )
 
 type artifactHasher interface {
-	hash(ctx context.Context, a *latest.Artifact) (string, error)
+	Hash(ctx context.Context, a *latest.Artifact) (string, error)
 }
 
 type artifactHasherImpl struct {
@@ -65,14 +64,14 @@ func newArtifactHasher(artifacts build.ArtifactGraph, lister DependencyLister, m
 	}
 }
 
-func (h *artifactHasherImpl) hash(ctx context.Context, a *latest.Artifact) (string, error) {
+func (h *artifactHasherImpl) Hash(ctx context.Context, a *latest.Artifact) (string, error) {
 	hash, err := h.safeHash(ctx, a)
 	if err != nil {
 		return "", err
 	}
 	hashes := []string{hash}
 	for _, dep := range sortedDependencies(a, h.artifacts) {
-		depHash, err := h.hash(ctx, dep)
+		depHash, err := h.Hash(ctx, dep)
 		if err != nil {
 			return "", err
 		}
@@ -107,6 +106,7 @@ func (h *artifactHasherImpl) safeHash(ctx context.Context, a *latest.Artifact) (
 // singleArtifactHash calculates the hash for a single artifact, and ignores its required artifacts.
 func singleArtifactHash(ctx context.Context, depLister DependencyLister, a *latest.Artifact, mode config.RunMode) (string, error) {
 	var inputs []string
+	var deps []string
 
 	// Append the artifact's configuration
 	config, err := artifactConfigFunc(a)
@@ -116,10 +116,23 @@ func singleArtifactHash(ctx context.Context, depLister DependencyLister, a *late
 	inputs = append(inputs, config)
 
 	// Append the digest of each input file
-	deps, err := depLister(ctx, a)
+	dependenciesMap, err := depLister(ctx, a)
 	if err != nil {
 		return "", fmt.Errorf("getting dependencies for %q: %w", a.ImageName, err)
 	}
+
+	if imagesIds, ok := dependenciesMap["imageIs"]; ok {
+		inputs = append(inputs, imagesIds...)
+	}
+
+	if files, ok := dependenciesMap["files"]; ok {
+		deps = append(deps, files...)
+	}
+
+	if testFiles, ok := dependenciesMap["testFiles"]; ok {
+		deps = append(deps, testFiles...)
+	}
+
 	sort.Strings(deps)
 
 	for _, d := range deps {
@@ -143,6 +156,7 @@ func singleArtifactHash(ctx context.Context, depLister DependencyLister, a *late
 	if args != nil {
 		inputs = append(inputs, args...)
 	}
+
 	return encode(inputs)
 }
 

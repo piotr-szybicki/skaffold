@@ -94,14 +94,14 @@ func (b *Builder) buildArtifactWithCloudBuild(ctx context.Context, out io.Writer
 	// https://github.com/GoogleContainerTools/skaffold/issues/3477
 	// TODO: Avoid duplication (every Jib artifact will upload the entire workspace)
 	if artifact.JibArtifact != nil {
-		deps, err := jibAddWorkspaceToDependencies(artifact.Workspace, dependencies)
+		deps, err := jibAddWorkspaceToDependencies(artifact.Workspace, dependencies["files"])
 		if err != nil {
 			return "", fmt.Errorf("walking workspace for Jib projects: %w", err)
 		}
-		dependencies = deps
+		dependencies["files"] = deps
 	}
 
-	if err := sources.UploadToGCS(ctx, c, artifact, cbBucket, buildObject, dependencies); err != nil {
+	if err := sources.UploadToGCS(ctx, c, artifact, cbBucket, buildObject, dependencies["files"]); err != nil {
 		return "", fmt.Errorf("uploading source tarball: %w", err)
 	}
 

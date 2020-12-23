@@ -124,7 +124,7 @@ func TestLookupLocal(t *testing.T) {
 				cfg:            &mockConfig{mode: config.RunModes.Build},
 			}
 
-			t.Override(&newArtifactHasherFunc, func(_ build.ArtifactGraph, _ DependencyLister, _ config.RunMode) artifactHasher { return test.hasher })
+			t.Override(&NewArtifactHasherFunc, func(_ build.ArtifactGraph, _ DependencyLister, _ config.RunMode) artifactHasher { return test.hasher })
 			details := cache.lookupArtifacts(context.Background(), map[string]string{"artifact": "tag"}, []*latest.Artifact{{
 				ImageName: "artifact",
 			}})
@@ -211,7 +211,7 @@ func TestLookupRemote(t *testing.T) {
 				client:         fakeLocalDaemon(test.api),
 				cfg:            &mockConfig{mode: config.RunModes.Build},
 			}
-			t.Override(&newArtifactHasherFunc, func(_ build.ArtifactGraph, _ DependencyLister, _ config.RunMode) artifactHasher { return test.hasher })
+			t.Override(&NewArtifactHasherFunc, func(_ build.ArtifactGraph, _ DependencyLister, _ config.RunMode) artifactHasher { return test.hasher })
 			details := cache.lookupArtifacts(context.Background(), map[string]string{"artifact": "tag"}, []*latest.Artifact{{
 				ImageName: "artifact",
 			}})
@@ -228,7 +228,7 @@ type mockHasher struct {
 	val string
 }
 
-func (m mockHasher) hash(context.Context, *latest.Artifact) (string, error) {
+func (m mockHasher) Hash(context.Context, *latest.Artifact) (string, error) {
 	return m.val, nil
 }
 
@@ -236,7 +236,7 @@ type failingHasher struct {
 	err error
 }
 
-func (f failingHasher) hash(context.Context, *latest.Artifact) (string, error) {
+func (f failingHasher) Hash(context.Context, *latest.Artifact) (string, error) {
 	return "", f.err
 }
 

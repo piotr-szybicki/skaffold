@@ -151,6 +151,17 @@ func getDependencies(workspace string, dockerfilePath string, absDockerfilePath 
 	return dependencies
 }
 
+func GetImageIdFromFromCmd(buildCfg BuildConfig, cfg Config) ([]string, error) {
+	//buildCfg BuildConfig, cfg Config
+	absDockerfilePath, err := NormalizeDockerfilePath(buildCfg.workspace, buildCfg.dockerfilePath)
+
+	if err != nil {
+		return nil, fmt.Errorf("normalizing dockerfilePath path: %w", err)
+	}
+
+	return readImageIdFromFromCmd(absDockerfilePath, buildCfg.args, cfg)
+}
+
 // readDockerignore reads patterns to ignore
 func readDockerignore(workspace string, absDockerfilePath string) ([]string, error) {
 	var excludes []string

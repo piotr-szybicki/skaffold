@@ -33,7 +33,7 @@ func (c *cache) lookupArtifacts(ctx context.Context, tags tag.ImageTags, artifac
 	details := make([]cacheDetails, len(artifacts))
 	// Create a new `artifactHasher` on every new dev loop.
 	// This way every artifact hash is calculated at most once in a single dev loop, and recalculated on every dev loop.
-	h := newArtifactHasherFunc(c.artifactGraph, c.lister, c.cfg.Mode())
+	h := NewArtifactHasherFunc(c.artifactGraph, c.lister, c.cfg.Mode())
 	var wg sync.WaitGroup
 	for i := range artifacts {
 		wg.Add(1)
@@ -50,7 +50,7 @@ func (c *cache) lookupArtifacts(ctx context.Context, tags tag.ImageTags, artifac
 }
 
 func (c *cache) lookup(ctx context.Context, a *latest.Artifact, tag string, h artifactHasher) cacheDetails {
-	hash, err := h.hash(ctx, a)
+	hash, err := h.Hash(ctx, a)
 	if err != nil {
 		return failed{err: fmt.Errorf("getting hash for artifact %q: %s", a.ImageName, err)}
 	}

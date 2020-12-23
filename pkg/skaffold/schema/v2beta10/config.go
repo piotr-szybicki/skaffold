@@ -131,7 +131,13 @@ type TagPolicy struct {
 
 	// CustomTemplateTagger *beta* tags images with a configurable template string *composed of other taggers*.
 	CustomTemplateTagger *CustomTemplateTagger `yaml:"customTemplate,omitempty" yamltags:"oneOf=tag"`
+
+	// DockerDigestTagger *beta* tags images with calculated docker digest*.
+	DockerDigestTagger *DockerDigestTagger `yaml:"dockerDigest,omitempty" yamltags:"oneOf=tag"`
 }
+
+// DockerDigestTagger *beta* tags images with docker digest
+type DockerDigestTagger struct{}
 
 // ShaTagger *beta* tags images with their sha256 digest.
 type ShaTagger struct{}

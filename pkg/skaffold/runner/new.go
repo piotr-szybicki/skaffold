@@ -19,6 +19,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/dockerDigest"
 
 	"github.com/sirupsen/logrus"
 
@@ -52,11 +53,6 @@ func NewForConfig(runCtx *runcontext.RunContext) (*SkaffoldRunner, error) {
 	event.LogMetaEvent()
 	kubectlCLI := pkgkubectl.NewCLI(runCtx, "")
 
-	tagger, err := getTagger(runCtx)
-	if err != nil {
-		return nil, fmt.Errorf("creating tagger: %w", err)
-	}
-
 	store := build.NewArtifactStore()
 	builder, imagesAreLocal, err := getBuilder(runCtx, store)
 	if err != nil {
@@ -76,8 +72,8 @@ func NewForConfig(runCtx *runcontext.RunContext) (*SkaffoldRunner, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating deployer: %w", err)
 	}
-	depLister := func(ctx context.Context, artifact *latest.Artifact) ([]string, error) {
-		buildDependencies, err := build.DependenciesForArtifact(ctx, artifact, runCtx, store)
+	depLister := func(ctx context.Context, artifact *latest.Artifact) (map[string][]string, error) {
+		dependenciesMap, err := build.DependenciesForArtifact(ctx, artifact, runCtx, store)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +83,14 @@ func NewForConfig(runCtx *runcontext.RunContext) (*SkaffoldRunner, error) {
 			return nil, err
 		}
 
-		return append(buildDependencies, testDependencies...), nil
+		dependenciesMap["testFiles"] = testDependencies
+
+		return dependenciesMap, nil
+	}
+
+	tagger, err := getTagger(runCtx, depLister)
+	if err != nil {
+		return nil, fmt.Errorf("creating tagger: %w", err)
 	}
 
 	graph := build.ToArtifactGraph(runCtx.Pipeline().Build.Artifacts)
@@ -250,7 +253,7 @@ func getDeployer(cfg kubectl.Config, labels map[string]string) (deploy.Deployer,
 	return deployers, nil
 }
 
-func getTagger(runCtx *runcontext.RunContext) (tag.Tagger, error) {
+func getTagger(runCtx *runcontext.RunContext, depLister cache.DependencyLister) (tag.Tagger, error) {
 	t := runCtx.Pipeline().Build.TagPolicy
 
 	switch {
@@ -270,6 +273,13 @@ func getTagger(runCtx *runcontext.RunContext) (tag.Tagger, error) {
 
 	case t.DateTimeTagger != nil:
 		return tag.NewDateTimeTagger(t.DateTimeTagger.Format, t.DateTimeTagger.TimeZone), nil
+
+	case t.DockerDigestTagger != nil:
+		return dockerDigest.NewDockerDigestTagger(depLister, build.ToArtifactGraph(runCtx.Pipeline().Build.Artifacts), runCtx.Mode()), nil
+
+	case t.CustomScriptTagger != nil:
+		return dockerDigest.NewCustomScriptTagger(t.CustomScriptTagger.TagCommand,
+			build.ToArtifactGraph(runCtx.Pipeline().Build.Artifacts)), nil
 
 	case t.CustomTemplateTagger != nil:
 		components, err := CreateComponents(t.CustomTemplateTagger)
