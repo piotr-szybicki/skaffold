@@ -779,6 +779,17 @@ type Artifact struct {
 
 	// Dependencies describes build artifacts that this artifact depends on.
 	Dependencies []*ArtifactDependency `yaml:"requires,omitempty"`
+
+	// CustomTagger allows for custom tag generation for a given artifact.
+	CustomTagger *CustomTagger `yaml:"customTagger,omitempty"`
+}
+
+type CustomTagger struct {
+	//command to be executed that will output a tag for the given artifacts
+	Command string `yaml:"command,omitempty"`
+
+	//list of Environmental Variables that will be passed to a command
+	EnvVar []string `yaml:"envVars,omitempty"`
 }
 
 // Sync *beta* specifies what files to sync into the container.
