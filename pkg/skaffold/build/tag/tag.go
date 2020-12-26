@@ -39,6 +39,13 @@ const DeprecatedImageName = "_DEPRECATED_IMAGE_NAME_"
 // The workingDir is the root directory of the artifact with respect to the Skaffold root,
 // and imageName is the base name of the image.
 func GenerateFullyQualifiedImageName(t Tagger, workingDir string, image *latest.Artifact) (string, error) {
+	//if image has a custom tagger assigned to it that takes precedens
+	if image.CustomTagger != nil {
+		tagger := NewCustomCommandTagger()
+		tag, err := tagger.GenerateTag(workingDir, image)
+		return fmt.Sprintf("%s:%s", image.ImageName, tag), err
+	}
+
 	// Supporting the use of the deprecated {{.IMAGE_NAME}} in envTemplate
 	deprecatedImage := &latest.Artifact{
 		ImageName: DeprecatedImageName,
